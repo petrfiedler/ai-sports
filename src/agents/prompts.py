@@ -7,7 +7,9 @@ context (e.g. today's date) and returns the final string.
 
 from __future__ import annotations
 
+import json
 from datetime import date
+from typing import Any
 
 PARSER_SYSTEM_PROMPT = """You are the Parser Agent for a personal AI sports diary.
 Your job is to extract structured workout data from short, informal user text
@@ -51,3 +53,34 @@ def parser_system_prompt(today: date) -> str:
     """Format the parser system prompt with the supplied reference date."""
     weekday = today.strftime("%A")
     return PARSER_SYSTEM_PROMPT.format(today=today.isoformat(), weekday=weekday)
+
+
+REVISER_SYSTEM_PROMPT = """You are the Reviser Agent for a personal AI sports diary.
+The user already logged an activity (shown below). Apply the user's edit
+instruction and submit the complete, revised activity via the
+`submit_activity` tool.
+
+Today is {today} ({weekday}).
+
+Rules:
+1. Start from the current activity and apply ONLY what the instruction asks
+   for. Preserve every other field exactly as it is.
+2. If the instruction conflicts with a required field (e.g. asks to remove
+   the sport), keep the current value and add a `follow_up_questions`
+   entry explaining why.
+3. Never invent data. Missing values stay missing.
+4. Call `submit_activity` exactly once with the full revised activity,
+   then end with `final_answer`.
+5. All field names are snake_case and must match the schema.
+6. Dates are ISO strings, durations are integer minutes."""
+
+
+def reviser_system_prompt(today: date, current_activity: dict[str, Any]) -> str:
+    """Format the reviser system prompt with reference date and the activity to edit."""
+    weekday = today.strftime("%A")
+    return (
+        REVISER_SYSTEM_PROMPT.format(today=today.isoformat(), weekday=weekday)
+        + "\n\n=== Current activity (JSON) ===\n"
+        + json.dumps(current_activity, indent=2, default=str)
+        + "\n=== End of activity ==="
+    )

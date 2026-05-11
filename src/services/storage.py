@@ -129,6 +129,14 @@ class GitHubStorage:
         self.write_file(path, _dump_frontmatter(activity, body), f"Save activity {path}")
         return path
 
+    def update_activity(self, path: str, activity: ActivitySchema, body: str) -> None:
+        """Write a revised activity back to its original path.
+
+        Unlike :meth:`save_activity` this does not re-derive the path from the
+        title/date, so renaming an activity does not orphan the original file.
+        """
+        self.write_file(path, _dump_frontmatter(activity, body), f"Update activity {path}")
+
     def load_activity(self, path: str) -> tuple[ActivitySchema, str] | None:
         raw = self.read_file(path)
         if raw is None:

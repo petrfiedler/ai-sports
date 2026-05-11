@@ -18,8 +18,8 @@ from smolagents.models import (
     MessageRole,
 )
 
-from src.agents.parser_agent import parse_activity
-from src.models.schemas import Intensity, SportType
+from src.agents.parser_agent import parse_activity, revise_activity
+from src.models.schemas import ActivitySchema, Intensity, SportType
 
 
 class ScriptedModel(Model):
@@ -271,4 +271,75 @@ def test_agent_exception_does_not_propagate() -> None:
     result = parse_activity("30 min run today", today=TODAY, model=BoomModel())
 
     assert result.activity is None
+    assert result.fallback_message is not None
+
+
+# --- revise_activity -------------------------------------------------------
+
+
+def _existing_run() -> ActivitySchema:
+    return ActivitySchema(
+        title="Morning run",
+        sport=SportType.RUNNING,
+        activity_date=date(2026, 5, 10),
+        duration_minutes=30,
+        rpe=4,
+    )
+
+
+def test_revise_returns_updated_activity() -> None:
+    model = _submit_then_finish(
+        {
+            "title": "Morning run",
+            "sport": "running",
+            "activity_date": "2026-05-10",
+            "duration_minutes": 45,
+            "rpe": 4,
+        }
+    )
+
+    result = revise_activity(
+        _existing_run(),
+        "actually it was 45 minutes",
+        today=TODAY,
+        model=model,
+    )
+
+    assert result.activity is not None
+    assert result.activity.duration_minutes == 45
+    assert result.activity.title == "Morning run"
+    assert result.fallback_message is None
+
+
+def test_revise_empty_instruction_returns_current() -> None:
+    current = _existing_run()
+    result = revise_activity(current, "   ", today=TODAY, model=ScriptedModel([]))
+    assert result.activity == current
+    assert result.fallback_message is not None
+
+
+def test_revise_invalid_payload_falls_back_to_current() -> None:
+    current = _existing_run()
+    model = _submit_then_finish(
+        {
+            "title": "Morning run",
+            "sport": "running",
+            "activity_date": "2026-05-10",
+            "duration_minutes": -5,
+        }
+    )
+    result = revise_activity(current, "make it faster", today=TODAY, model=model)
+    assert result.activity == current
+    assert result.fallback_message is not None
+
+
+def test_revise_agent_exception_falls_back_to_current() -> None:
+    current = _existing_run()
+
+    class BoomModel(Model):
+        def generate(self, *args: Any, **kwargs: Any) -> ChatMessage:
+            raise RuntimeError("model down")
+
+    result = revise_activity(current, "shorter please", today=TODAY, model=BoomModel())
+    assert result.activity == current
     assert result.fallback_message is not None
