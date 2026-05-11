@@ -14,7 +14,7 @@ from typing import Any, Optional
 from pydantic import ValidationError
 from smolagents import Tool
 
-from src.models.schemas import ActivitySchema, FollowUpQuestion
+from src.models.schemas import ACTIVITY_SUMMARY_MAX, ActivitySchema, FollowUpQuestion
 
 
 @dataclass
@@ -86,6 +86,9 @@ class SubmitActivityTool(Tool):
 
         payload = dict(activity)
         payload.pop("follow_up_questions", None)
+        summary = payload.get("summary")
+        if isinstance(summary, str) and len(summary) > ACTIVITY_SUMMARY_MAX:
+            payload["summary"] = summary[: ACTIVITY_SUMMARY_MAX - 1].rstrip() + "…"
         try:
             self._state.activity = ActivitySchema(**payload)
         except ValidationError as exc:

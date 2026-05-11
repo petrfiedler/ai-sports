@@ -115,6 +115,9 @@ if activity.rpe:
     chips.append(f"RPE {activity.rpe}")
 st.caption("  ·  ".join(chips))
 
+if activity.summary:
+    st.markdown(f"**{activity.summary}**")
+
 st.divider()
 
 # --- Sport-conditional body ------------------------------------------------

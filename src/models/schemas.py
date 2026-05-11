@@ -20,6 +20,9 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+ACTIVITY_SUMMARY_MAX = 160
+
+
 class SportType(str, Enum):
     RUNNING = "running"
     CYCLING = "cycling"
@@ -122,6 +125,11 @@ class ActivitySchema(BaseModel):
 
     rpe: Optional[int] = Field(default=None, ge=1, le=10, description="Rate of Perceived Exertion 1-10.")
     intensity: Optional[Intensity] = None
+    summary: Optional[str] = Field(
+        default=None,
+        max_length=ACTIVITY_SUMMARY_MAX,
+        description="One-line, dashboard-friendly recap of what the workout contained.",
+    )
     notes: Optional[str] = Field(default=None, description="Free-form feelings / commentary.")
 
     exercises: list[Exercise] = Field(default_factory=list)

@@ -27,6 +27,13 @@ Required for every activity:
 - sport: one of the values above.
 - activity_date: ISO date string YYYY-MM-DD.
 - duration_minutes: positive integer.
+- summary: ONE short line, hard cap 140 characters, for a dashboard tile.
+  Capture the distinguishing details — distance, pace, key lift(s), route
+  grade, how it felt — not the title or date. Write in the user's language.
+  If the session has many exercises, summarize at the block/theme level
+  ("3 supersets, upper-body push-pull") rather than listing every set.
+  Examples: "5.2 km easy at 5:45/km, felt fresh",
+  "Bench 8x80 / 6x85 + plank 60s", "V4-V5 overhangs, sent two new".
 
 Sport-specific guidance:
 - strength: include at least one entry in `exercises`, each with at least
@@ -72,7 +79,11 @@ Rules:
 4. Call `submit_activity` exactly once with the full revised activity,
    then end with `final_answer`.
 5. All field names are snake_case and must match the schema.
-6. Dates are ISO strings, durations are integer minutes."""
+6. Dates are ISO strings, durations are integer minutes.
+7. Keep `summary` in sync. If the edit changes details the summary
+   mentioned (distance, sets, sport, duration, etc.), rewrite it as one
+   short line (max ~140 chars) describing the updated workout. Otherwise
+   leave it untouched."""
 
 
 def reviser_system_prompt(today: date, current_activity: dict[str, Any]) -> str:

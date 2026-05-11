@@ -64,6 +64,8 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
         with col_main:
             st.markdown(f"### {icon}  {activity.title}")
             st.caption(f"{when}  ·  {duration_str}{rpe_str}")
+            if activity.summary:
+                st.markdown(activity.summary)
         with col_action:
             return st.button("Open", key=f"open_{path}", width="stretch")
 
