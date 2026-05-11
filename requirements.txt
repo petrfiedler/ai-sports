@@ -2,7 +2,7 @@
 streamlit>=1.40,<2.0
 
 # --- LLM agents ---
-smolagents>=1.10
+smolagents[litellm]>=1.10
 anthropic>=0.40
 
 # --- Data validation & serialization ---
