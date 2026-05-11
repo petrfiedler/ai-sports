@@ -1,0 +1,25 @@
+# --- Core UI ---
+streamlit>=1.40,<2.0
+
+# --- LLM agents ---
+smolagents>=1.10
+anthropic>=0.40
+
+# --- Data validation & serialization ---
+pydantic>=2.8,<3.0
+python-frontmatter>=1.1
+PyYAML>=6.0
+
+# --- Storage (private GitHub repo as DB) ---
+PyGithub>=2.4
+
+# --- Strava integration ---
+stravalib>=2.0
+requests>=2.32
+
+# --- Visualizations (pace / HR charts) ---
+plotly>=5.24
+
+# --- Dev / testing ---
+pytest>=8.3
+mypy>=1.11
