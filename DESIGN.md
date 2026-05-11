@@ -17,11 +17,11 @@ The system is built on a Multi-Agent System architecture. These agents process u
    - **Behavior:** Takes the user profile (sports goals, preferences) and the history of recent activities into account. Ensures the plan reflects current fatigue (e.g., it will not suggest an interval run the day after a heavy leg-day at the gym). The plan can be iteratively adjusted using natural language prompts.
 
 ## Data Model (Plaintext / Markdown)
-All data persistence relies on local Markdown files with YAML Frontmatter. This format is entirely natural for an LLM to read and write, while being easy to parse and render into a nice UI on the frontend.
+All data persistence relies on Markdown files with YAML Frontmatter, committed to a private GitHub data repository. This format is entirely natural for an LLM to read and write, while being easy to parse and render into a nice UI on the frontend.
 
 - **Profile (`profile.md`):** Where the user defines their goals (e.g., "I want to run a half marathon under 2 hours, I lift weights for core stability, and I boulder for fun").
-- **Activities (`/activities/YYYY-MM-DD-title.md`):** Each logged activity is saved as a single markdown file.
-- **Plan (`/plans/current.md`):** The saved training plan for the current or upcoming week.
+- **Activities (`activities/YYYY-MM-DD-title.md`):** Each logged activity is saved as a single markdown file.
+- **Plan (`plans/YYYY-Www-plan.md`):** The saved training plan, one file per ISO week.
 
 ## UI and Key Pages
 
