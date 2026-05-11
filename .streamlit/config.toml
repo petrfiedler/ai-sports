@@ -1,0 +1,17 @@
+# Streamlit configuration. Reloaded automatically when changed.
+# Reference: https://docs.streamlit.io/develop/api-reference/configuration
+
+[theme]
+base = "light"
+primaryColor = "#FF6B35"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5F5"
+textColor = "#1F1F1F"
+
+[server]
+# Convenient for local development; harmless in production.
+runOnSave = true
+headless = true
+
+[browser]
+gatherUsageStats = false
