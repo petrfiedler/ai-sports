@@ -226,6 +226,43 @@ def test_list_activities_filters_by_year(storage: GitHubStorage) -> None:
     assert all(p.startswith("activities/2025-") for p in storage.list_activities(year=2025))
 
 
+def test_activity_round_trip_preserves_map_and_photos(
+    storage: GitHubStorage,
+) -> None:
+    """Strava-sourced fields survive the YAML frontmatter round-trip."""
+    from src.models.schemas import ActivitySource, EnduranceMetrics
+
+    activity = ActivitySchema(
+        title="Lakeside long run",
+        sport=SportType.RUNNING,
+        activity_date=date(2026, 5, 11),
+        duration_minutes=72,
+        source=ActivitySource.STRAVA,
+        metrics=EnduranceMetrics(
+            distance_km=12.4,
+            avg_heart_rate=148,
+            strava_id=99887766,
+            map_polyline="_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+            photo_urls=[
+                "https://dgtzuqphqg23d.cloudfront.net/abc-1024.jpg",
+                "https://dgtzuqphqg23d.cloudfront.net/def-1024.jpg",
+            ],
+        ),
+    )
+    path = storage.save_activity(activity, "")
+    loaded = storage.load_activity(path)
+    assert loaded is not None
+    loaded_activity, _ = loaded
+    assert loaded_activity.metrics is not None
+    assert loaded_activity.metrics.map_polyline == "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+    assert loaded_activity.metrics.photo_urls == [
+        "https://dgtzuqphqg23d.cloudfront.net/abc-1024.jpg",
+        "https://dgtzuqphqg23d.cloudfront.net/def-1024.jpg",
+    ]
+    assert loaded_activity.metrics.strava_id == 99887766
+    assert loaded_activity.source == "strava"
+
+
 def test_delete_activity(storage: GitHubStorage) -> None:
     path = storage.save_activity(
         ActivitySchema(

@@ -48,12 +48,17 @@ def patch_services(
     monkeypatch: pytest.MonkeyPatch, fake_storage: FakeStorage
 ) -> FakeStorage:
     monkeypatch.setattr("src.ui.services.get_storage", lambda: fake_storage)
+    # Strava is optional and stubbed off; Sync button stays disabled.
+    monkeypatch.setattr("src.ui.services.get_strava_client", lambda: None)
 
-    def _list(*_args: object, **_kwargs: object) -> list[tuple[str, ActivitySchema]]:
-        return fake_storage.activities
+    def _list(
+        limit: int = 10, offset: int = 0, **_kwargs: object
+    ) -> tuple[list[tuple[str, ActivitySchema]], int]:
+        window = fake_storage.activities[offset : offset + limit]
+        return window, len(fake_storage.activities)
 
-    _list.clear = lambda: None  # type: ignore[attr-defined]
     monkeypatch.setattr("src.ui.services.list_recent_activities", _list)
+    monkeypatch.setattr("src.ui.services.clear_activity_caches", lambda: None)
     return fake_storage
 
 
@@ -119,7 +124,9 @@ def test_quick_add_saves_parsed_activity(
     at = AppTest.from_file(DASHBOARD_PAGE).run()
     _authenticate(at)
     at.text_area[0].set_value("25 min lunch run").run()
-    at.button[0].click().run()
+    # button[0] is the Sync Strava button (disabled in tests); the Quick Add
+    # submit is the second button.
+    at.button[1].click().run()
     assert not at.exception
     assert len(fake_storage.saved) == 1
     saved_activity, saved_body = fake_storage.saved[0]
@@ -137,9 +144,34 @@ def test_quick_add_renders_fallback_when_parser_fails(
     at = AppTest.from_file(DASHBOARD_PAGE).run()
     _authenticate(at)
     at.text_area[0].set_value("asdf").run()
-    at.button[0].click().run()
+    # button[0] is the Sync Strava button (disabled in tests); the Quick Add
+    # submit is the second button.
+    at.button[1].click().run()
     assert not at.exception
     assert any("Couldn't parse" in str(w.value) for w in at.warning)
+
+
+def test_load_more_increases_displayed_count(
+    patch_services: FakeStorage, fake_storage: FakeStorage
+) -> None:
+    """With more than one page of activities, a Load more button appears."""
+    today = date.today()
+    fake_storage.activities = [
+        (
+            f"activities/2026-{(i % 12) + 1:02d}-01-x.md",
+            ActivitySchema(
+                title=f"Run {i}",
+                sport=SportType.RUNNING,
+                activity_date=today,
+                duration_minutes=20,
+            ),
+        )
+        for i in range(15)
+    ]
+    at = AppTest.from_file(DASHBOARD_PAGE).run()
+    _authenticate(at)
+    # Default page size is 10 → 5 activities should remain behind a Load more.
+    assert any("Load 5 more" in (b.label or "") for b in at.button)
 
 
 def test_quick_add_stashes_follow_up_questions(
@@ -162,7 +194,9 @@ def test_quick_add_stashes_follow_up_questions(
     at = AppTest.from_file(DASHBOARD_PAGE).run()
     _authenticate(at)
     at.text_area[0].set_value("a quick run").run()
-    at.button[0].click().run()
+    # button[0] is the Sync Strava button (disabled in tests); the Quick Add
+    # submit is the second button.
+    at.button[1].click().run()
     assert not at.exception
     assert "follow_ups" in at.session_state
     follow_ups = at.session_state["follow_ups"]

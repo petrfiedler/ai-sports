@@ -23,6 +23,11 @@ from src.ui.components import (
     page_header,
     render_endurance_charts,
     render_followups,
+    render_lap_bars,
+    render_lap_table,
+    render_photo_gallery,
+    render_route_map,
+    render_streams_charts,
     render_strength_table,
     sport_icon,
 )
@@ -76,7 +81,7 @@ def _apply_revision(
         st.error(f"Could not save: {exc}")
         return False
 
-    ui_services.list_recent_activities.clear()
+    ui_services.clear_activity_caches()
     st.success("Updated.")
     return True
 
@@ -109,6 +114,8 @@ icon = sport_icon(activity.sport)
 page_header(f"{icon}  {activity.title}", activity.activity_date.isoformat())
 
 chips: list[str] = [f"{activity.duration_minutes} min"]
+if activity.location:
+    chips.append(f"📍 {activity.location}")
 if activity.intensity:
     chips.append(f"intensity: {activity.intensity}")
 if activity.rpe:
@@ -126,6 +133,17 @@ if activity.sport == SportType.STRENGTH.value:
     render_strength_table(activity.exercises)
 elif activity.sport in _ENDURANCE_SPORTS:
     render_endurance_charts(activity.metrics)
+
+if activity.metrics:
+    # Live HR + elevation traces from Strava — only fetched once the user
+    # opens the detail page so list views stay cheap.
+    if activity.metrics.strava_id:
+        streams = ui_services.get_activity_streams(activity.metrics.strava_id)
+        render_streams_charts(streams)
+    render_lap_bars(activity.metrics.laps)
+    render_lap_table(activity.metrics.laps)
+    render_route_map(activity.metrics.map_polyline)
+    render_photo_gallery(activity.metrics.photo_urls)
 
 if activity.notes:
     st.markdown(activity.notes)
@@ -185,7 +203,7 @@ with st.popover("🗑️ Delete activity"):
         except Exception as exc:
             st.error(f"Delete failed: {exc}")
         else:
-            ui_services.list_recent_activities.clear()
+            ui_services.clear_activity_caches()
             st.session_state.pop("selected_activity_path", None)
             follow_ups_state.pop(path, None)
             try:

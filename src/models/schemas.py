@@ -20,7 +20,7 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-ACTIVITY_SUMMARY_MAX = 160
+ACTIVITY_SUMMARY_MAX = 500
 
 
 class SportType(str, Enum):
@@ -80,6 +80,21 @@ class Exercise(BaseModel):
     notes: Optional[str] = None
 
 
+class Lap(BaseModel):
+    """A single lap inside an endurance activity (typically auto-split per km)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lap_index: int = Field(..., ge=1)
+    elapsed_time_s: int = Field(..., ge=0)
+    moving_time_s: Optional[int] = Field(default=None, ge=0)
+    distance_m: Optional[float] = Field(default=None, ge=0)
+    avg_heart_rate: Optional[int] = Field(default=None, ge=0, le=250)
+    max_heart_rate: Optional[int] = Field(default=None, ge=0, le=250)
+    avg_speed_ms: Optional[float] = Field(default=None, ge=0)
+    elevation_gain_m: Optional[float] = Field(default=None)
+
+
 class EnduranceMetrics(BaseModel):
     """Metrics typical for running, cycling, swimming, hiking.
 
@@ -96,6 +111,18 @@ class EnduranceMetrics(BaseModel):
     elevation_gain_m: Optional[float] = Field(default=None, ge=0)
     calories: Optional[int] = Field(default=None, ge=0)
     strava_id: Optional[int] = Field(default=None, description="Strava activity ID, if synced.")
+    map_polyline: Optional[str] = Field(
+        default=None,
+        description="Google-encoded polyline of the route, as returned by Strava's summary_polyline.",
+    )
+    photo_urls: list[str] = Field(
+        default_factory=list,
+        description="Strava CDN URLs for photos attached to the activity; images are loaded live at view time.",
+    )
+    laps: list[Lap] = Field(
+        default_factory=list,
+        description="Per-lap aggregates from Strava (auto-laps are usually 1 km).",
+    )
 
 
 class FollowUpQuestion(BaseModel):
@@ -125,10 +152,14 @@ class ActivitySchema(BaseModel):
 
     rpe: Optional[int] = Field(default=None, ge=1, le=10, description="Rate of Perceived Exertion 1-10.")
     intensity: Optional[Intensity] = None
+    location: Optional[str] = Field(
+        default=None,
+        description="City or place name where the activity happened, e.g. 'Prague'.",
+    )
     summary: Optional[str] = Field(
         default=None,
         max_length=ACTIVITY_SUMMARY_MAX,
-        description="One-line, dashboard-friendly recap of what the workout contained.",
+        description="Short recap shown on the dashboard card; for Strava activities this is the user's Strava description.",
     )
     notes: Optional[str] = Field(default=None, description="Free-form feelings / commentary.")
 

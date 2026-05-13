@@ -16,9 +16,12 @@ PyGithub>=2.4
 # --- Strava integration ---
 stravalib>=2.0
 requests>=2.32
+polyline>=2.0
 
-# --- Visualizations (pace / HR charts) ---
+# --- Visualizations (pace / HR charts + route maps) ---
 plotly>=5.24
+folium>=0.17
+streamlit-folium>=0.22
 
 # --- Dev / testing ---
 pytest>=8.3

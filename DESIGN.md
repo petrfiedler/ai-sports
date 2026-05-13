@@ -33,6 +33,8 @@ All data persistence relies on Markdown files with YAML Frontmatter, committed t
 ### 2. Activity Page (Activity Detail)
 - **Header:** Sport icon, title, date, duration, and potentially Rate of Perceived Exertion (RPE).
 - **Processed Output:** Beautifully rendered tables (for sets/reps/weights), charts (for Strava runs - heart rate, pace), and text notes ("feelings").
+- **Route Map (Strava activities):** When a Strava-synced activity has a route polyline, the page renders an interactive map with the route overlaid on an OSM basemap. Only the encoded polyline string is stored locally; the basemap tiles are fetched live at view time.
+- **Photos (Strava activities):** Any photos attached to the Strava activity are displayed in an inline gallery. Image URLs are persisted, but the images themselves are streamed directly from Strava's CDN on each view — nothing is downloaded into the data repo.
 - **Q&A Panel (Follow-up Questions):** If the Parser Agent determines the data is incomplete, it displays follow-up text fields here (e.g., "What was the rest time between sets?"). These can be filled out or completely ignored via a "Skip" button.
 - **Raw Edit / Master Prompt:** A field at the bottom of the page. If the user notices the AI misunderstood an exercise, they type: "Change those squats, they weren't standard but Bulgarian split squats". The background Agent modifies the source Markdown based on the instruction, and the UI instantly re-renders.
 

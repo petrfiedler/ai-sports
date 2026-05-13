@@ -169,29 +169,45 @@ Each phase lists: **Goal**, **Touches** (files), **Steps**, and **Done when** (c
 
 ## Phase 7 — Strava integration (Sync Agent)
 
-**Goal:** Pull running activities from Strava and persist them in the same Markdown format. This is independent of Phases 5–6 and could slip later if time runs short.
+**Goal:** Pull running activities from Strava and persist them in the same Markdown format, including the route map and any photos so the Activity Detail page renders them. Photos and the map basemap are fetched from Strava / OSM at view time — we only store references (polyline + photo URLs), not binary assets. This is independent of Phases 5–6 and could slip later if time runs short.
 
 **Touches**
 - `src/services/strava_sync.py` (new)
 - `src/agents/sync_agent.py` (new — orchestrates the import; very thin)
+- `src/models/schemas.py` — extend `EnduranceMetrics` with `map_polyline: Optional[str]` and `photo_urls: list[str]` (default `[]`).
 - `src/ui/pages/1_Dashboard.py` — add a "Sync Strava" button
+- `src/ui/pages/2_Activity_Detail.py` — render route map + photo gallery when fields are present (additive: existing strength/endurance/notes layout unchanged).
+- `src/ui/components.py` — `render_route_map(polyline: str)`, `render_photo_gallery(urls: list[str])`.
 - `src/config.py` — Strava fields become required
+- `requirements.txt` — add `polyline` (decode Strava's encoded polyline) and `streamlit-folium` + `folium` (interactive route map on OSM tiles).
 
 **Steps**
 1. Strava OAuth setup (one-time, outside the app):
    - Register a Strava API application; get `client_id`/`client_secret`.
+   - Ensure the requested scope includes `activity:read_all` so we can fetch photo URLs in addition to summary data.
    - Run a small helper script (`scripts/strava_authorize.py`, kept out of `src/`) that walks the auth-code flow once locally and prints the long-lived `refresh_token`. Paste the result into `secrets.toml`.
 2. `StravaClient`:
    - Uses the refresh token to mint short-lived access tokens (`stravalib` or raw `requests`).
-   - `recent_activities(since: date) -> list[dict]`.
-3. `sync_recent()`:
+   - `recent_activities(since: date) -> list[dict]` — list endpoint, returns summary including `map.summary_polyline`.
+   - `activity_photos(activity_id: int, size: int = 1024) -> list[str]` — `GET /activities/{id}/photos?size={size}&photo_sources=true`, returns a list of CDN URLs (largest variant per photo). Empty list when the activity has no photos.
+3. Schema extension (lands first in this phase):
+   - Add `map_polyline: Optional[str]` to `EnduranceMetrics` — Google-encoded polyline string straight from Strava (`summary_polyline`). Stored as-is; decoded only at render time.
+   - Add `photo_urls: list[str] = []` to `EnduranceMetrics` — Strava CDN URLs. We persist the URL only; the image bytes stay on Strava and are loaded by the browser via `st.image(url)`.
+   - Round-trip the new fields through the frontmatter test in `tests/test_storage.py` (or `test_schemas.py`) so they survive load/save.
+4. `sync_recent()`:
    - Determine "since" = latest stored Strava activity date (or 30 days ago on first run).
    - For each new activity: build an `ActivitySchema` (sport ↔ Strava type mapping, distance, avg HR, etc.) with `source = STRAVA` and a synthesized body ("Synced from Strava.").
+   - Populate `metrics.map_polyline` from the activity's `map.summary_polyline` (skip if empty — e.g. treadmill runs have no route).
+   - If the activity's `total_photo_count > 0`, call `activity_photos(id)` and stash the URLs in `metrics.photo_urls`. Otherwise leave the list empty.
    - Use `metrics.strava_id` for dedup — skip if already stored.
    - `storage.save_activity` each one.
-4. Dashboard wires a button "Sync Strava" that calls `sync_recent()` and reports the count of new activities.
+5. Activity Detail rendering (additive, runs on every activity but only renders when the fields are present):
+   - `render_route_map`: decode `metrics.map_polyline` with the `polyline` library, build a `folium.Map`, drop a `PolyLine` overlay, fit bounds to the route, and embed via `streamlit-folium.st_folium`. Skip cleanly when polyline is absent or unparseable.
+   - `render_photo_gallery`: lay the URLs out in a responsive grid (e.g. `st.columns(3)`) and pass each URL straight to `st.image(url, use_container_width=True)` — no downloading, no caching, no GitHub round-trip. Skip cleanly when the list is empty.
+   - Both renderers are also safe to call for manual activities (polyline/photo_urls are simply absent), so the detail page doesn't need source-specific branching.
+6. Dashboard wires a button "Sync Strava" that calls `sync_recent()` and reports the count of new activities.
 
-**Done when:** Clicking "Sync Strava" once imports my actual last run from Strava into the data repo with HR + pace, and clicking it again imports nothing (dedup works).
+**Done when:** Clicking "Sync Strava" once imports my actual last run from Strava into the data repo with HR + pace, and clicking it again imports nothing (dedup works). Opening that synced run on the Activity Detail page shows the route drawn on an interactive map and any photos attached to the activity, both loaded live from Strava/OSM with no binary assets stored in the data repo.
 
 ---
 

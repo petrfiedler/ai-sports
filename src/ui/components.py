@@ -16,9 +16,9 @@ from src.models.schemas import (
     EnduranceMetrics,
     Exercise,
     FollowUpQuestion,
+    Lap,
     SportType,
 )
-
 
 _SPORT_ICONS: dict[str, str] = {
     SportType.RUNNING.value: "🏃",
@@ -57,13 +57,18 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
     icon = sport_icon(activity.sport)
     when = activity.activity_date.isoformat()
     duration_str = f"{activity.duration_minutes} min"
-    rpe_str = f"  ·  RPE {activity.rpe}" if activity.rpe else ""
+    parts = [when, duration_str]
+    if activity.location:
+        parts.append(f"📍 {activity.location}")
+    if activity.rpe:
+        parts.append(f"RPE {activity.rpe}")
+    caption = "  ·  ".join(parts)
 
     with st.container(border=True):
         col_main, col_action = st.columns([5, 1])
         with col_main:
             st.markdown(f"### {icon}  {activity.title}")
-            st.caption(f"{when}  ·  {duration_str}{rpe_str}")
+            st.caption(caption)
             if activity.summary:
                 st.markdown(activity.summary)
         with col_action:
@@ -127,11 +132,11 @@ def render_endurance_charts(metrics: Optional[EnduranceMetrics]) -> None:
         return
     tiles: list[tuple[str, str]] = []
     if metrics.distance_km is not None:
-        tiles.append(("Distance", f"{metrics.distance_km:g} km"))
+        tiles.append(("Distance", f"{metrics.distance_km:.2f} km"))
     if metrics.avg_pace:
         tiles.append(("Avg pace", metrics.avg_pace))
     if metrics.avg_speed_kmh is not None:
-        tiles.append(("Avg speed", f"{metrics.avg_speed_kmh:g} km/h"))
+        tiles.append(("Avg speed", f"{metrics.avg_speed_kmh:.1f} km/h"))
     if metrics.avg_heart_rate is not None:
         tiles.append(("Avg HR", f"{metrics.avg_heart_rate} bpm"))
     if metrics.max_heart_rate is not None:
@@ -148,6 +153,233 @@ def render_endurance_charts(metrics: Optional[EnduranceMetrics]) -> None:
     for i, (label, value) in enumerate(tiles):
         with cols[i % len(cols)]:
             st.metric(label, value)
+
+
+def render_route_map(polyline_str: Optional[str], *, height: int = 360) -> None:
+    """Render a Strava route on an OSM basemap from an encoded polyline.
+
+    Decodes ``polyline_str`` with the ``polyline`` library, drops the points
+    onto a ``folium`` map, fits the viewport to the route, and embeds via
+    ``streamlit-folium``. Silent no-op when the polyline is missing or
+    contains fewer than two points.
+    """
+    if not polyline_str:
+        return
+    try:
+        import polyline as _polyline
+    except ImportError:
+        return
+    try:
+        coords = _polyline.decode(polyline_str)
+    except Exception:
+        return
+    if len(coords) < 2:
+        return
+
+    try:
+        import folium
+        from streamlit_folium import st_folium
+    except ImportError:
+        return
+
+    lats = [c[0] for c in coords]
+    lons = [c[1] for c in coords]
+    center = (sum(lats) / len(lats), sum(lons) / len(lons))
+    bounds = [(min(lats), min(lons)), (max(lats), max(lons))]
+
+    fmap = folium.Map(location=center, tiles="OpenStreetMap", zoom_start=13)
+    folium.PolyLine(coords, color="#fc4c02", weight=4, opacity=0.85).add_to(fmap)
+    fmap.fit_bounds(bounds, padding=(20, 20))
+    st_folium(fmap, height=height, width=None, returned_objects=[])
+
+
+def render_photo_gallery(
+    urls: list[str], *, columns: int = 3, width: int = 280
+) -> None:
+    """Render Strava-hosted photos in a small responsive thumbnail grid.
+
+    Image URLs are passed straight to ``st.image`` so the browser fetches
+    each one from Strava's CDN at view time — nothing is downloaded into
+    the data repo. ``width`` caps each thumbnail so the gallery stays
+    compact even on wide viewports. No-op when ``urls`` is empty.
+    """
+    if not urls:
+        return
+    cols = st.columns(min(columns, len(urls)))
+    for i, url in enumerate(urls):
+        with cols[i % len(cols)]:
+            st.image(url, width=width)
+
+
+def _format_lap_time(seconds: Optional[int]) -> str:
+    if not seconds or seconds <= 0:
+        return "—"
+    m, s = divmod(int(seconds), 60)
+    if m >= 60:
+        h, m = divmod(m, 60)
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m}:{s:02d}"
+
+
+def _format_lap_pace(distance_m: Optional[float], moving_s: Optional[int]) -> str:
+    if not distance_m or not moving_s or distance_m <= 0 or moving_s <= 0:
+        return "—"
+    spk = moving_s / (distance_m / 1000.0)
+    m, s = divmod(int(round(spk)), 60)
+    return f"{m}:{s:02d}/km"
+
+
+def render_lap_bars(laps: list[Lap]) -> None:
+    """Bar chart: width = lap duration, height = speed (km/h).
+
+    Variable widths mean the x-axis reads as cumulative time, so a long
+    slow lap takes up more horizontal space than a quick one. Height is
+    speed (km/h) — faster laps are taller, matching the user's "lower
+    pace → taller bar" intuition. Hover shows pace, distance, and time.
+
+    No-op when there are fewer than two laps with usable distance data.
+    """
+    valid: list[tuple[Lap, float, float, float]] = []
+    cumulative_min = 0.0
+    for lap in laps:
+        duration_s = lap.moving_time_s or lap.elapsed_time_s
+        if not duration_s or not lap.distance_m or lap.distance_m <= 0:
+            continue
+        duration_min = duration_s / 60.0
+        speed_kmh = (lap.distance_m / 1000.0) / (duration_s / 3600.0)
+        center = cumulative_min + duration_min / 2.0
+        valid.append((lap, center, duration_min, speed_kmh))
+        cumulative_min += duration_min
+
+    if len(valid) < 2:
+        return
+
+    try:
+        import plotly.graph_objects as go
+    except ImportError:
+        return
+
+    hover_texts: list[str] = []
+    for lap, _, duration_min, speed_kmh in valid:
+        duration_s = lap.moving_time_s or lap.elapsed_time_s or 0
+        pace_str = _format_lap_pace(lap.distance_m, duration_s)
+        time_str = _format_lap_time(duration_s)
+        hr_line = f"<br>Avg HR: {lap.avg_heart_rate} bpm" if lap.avg_heart_rate else ""
+        assert lap.distance_m is not None
+        hover_texts.append(
+            f"Lap {lap.lap_index}<br>"
+            f"Pace: {pace_str}<br>"
+            f"Speed: {speed_kmh:.1f} km/h<br>"
+            f"Distance: {lap.distance_m / 1000:.2f} km<br>"
+            f"Time: {time_str}"
+            f"{hr_line}"
+        )
+
+    st.markdown("**Lap pace**")
+    fig = go.Figure(
+        go.Bar(
+            x=[v[1] for v in valid],
+            y=[v[3] for v in valid],
+            width=[v[2] for v in valid],
+            hovertext=hover_texts,
+            hoverinfo="text",
+            marker_color="#fc4c02",
+        )
+    )
+    fig.update_layout(
+        height=260,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="cumulative time (min)",
+        yaxis_title="speed (km/h)",
+        bargap=0.02,
+    )
+    st.plotly_chart(fig, width="stretch")
+
+
+def render_lap_table(laps: list[Lap]) -> None:
+    """Render per-lap aggregates as a compact table.
+
+    Shows lap #, time, distance, pace, avg HR, and elevation gain. Missing
+    fields render as ``—``. No-op when ``laps`` is empty or all laps have
+    zero duration (e.g. a manually started/stopped strength workout).
+    """
+    if not laps:
+        return
+    rows: list[dict[str, str]] = []
+    for lap in laps:
+        rows.append(
+            {
+                "Lap": str(lap.lap_index),
+                "Time": _format_lap_time(lap.moving_time_s or lap.elapsed_time_s),
+                "Distance": (
+                    f"{lap.distance_m / 1000.0:.2f} km"
+                    if lap.distance_m
+                    else "—"
+                ),
+                "Pace": _format_lap_pace(lap.distance_m, lap.moving_time_s or lap.elapsed_time_s),
+                "Avg HR": f"{lap.avg_heart_rate} bpm" if lap.avg_heart_rate else "—",
+                "Elev. gain": (
+                    f"{lap.elevation_gain_m:.0f} m"
+                    if lap.elevation_gain_m is not None
+                    else "—"
+                ),
+            }
+        )
+    if not rows:
+        return
+    st.markdown("**Laps**")
+    st.table(rows)
+
+
+def render_streams_charts(streams: dict[str, list[float]]) -> None:
+    """Render HR and elevation time-series as Plotly line charts.
+
+    ``streams`` is the dict returned by ``StravaClient.activity_streams`` —
+    one key per stream type. We render heart-rate over time and altitude
+    over distance (km) when both are present; either chart is skipped
+    individually if its data isn't there.
+    """
+    if not streams:
+        return
+    time_s = streams.get("time") or []
+    distance_m = streams.get("distance") or []
+    hr = streams.get("heartrate") or []
+    altitude = streams.get("altitude") or []
+    if not (hr or altitude):
+        return
+
+    try:
+        import plotly.graph_objects as go
+    except ImportError:
+        return
+
+    col_hr, col_alt = st.columns(2)
+
+    if hr and time_s and len(hr) == len(time_s):
+        with col_hr:
+            st.markdown("**Heart rate**")
+            x_min = [t / 60.0 for t in time_s]
+            fig = go.Figure(go.Scatter(x=x_min, y=hr, mode="lines", line=dict(color="#e63946")))
+            fig.update_layout(
+                height=240,
+                margin=dict(l=0, r=0, t=10, b=0),
+                xaxis_title="time (min)",
+                yaxis_title="bpm",
+            )
+            st.plotly_chart(fig, width="stretch")
+
+    if altitude and distance_m and len(altitude) == len(distance_m):
+        with col_alt:
+            st.markdown("**Elevation**")
+            x_km = [d / 1000.0 for d in distance_m]
+            fig = go.Figure(go.Scatter(x=x_km, y=altitude, mode="lines", line=dict(color="#2a9d8f"), fill="tozeroy"))
+            fig.update_layout(
+                height=240,
+                margin=dict(l=0, r=0, t=10, b=0),
+                xaxis_title="distance (km)",
+                yaxis_title="m",
+            )
+            st.plotly_chart(fig, width="stretch")
 
 
 def render_followups(
