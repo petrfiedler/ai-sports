@@ -1,9 +1,14 @@
 """Tools exposed to the LLM agents.
 
-For now there is only one: ``SubmitActivityTool``, which the Parser Agent
-calls exactly once to hand back the parsed workout. The tool stashes the
-agent's structured output into a shared ``SubmitState`` instance so the
-calling function can read it after the agent run completes.
+Two single-purpose submission tools live here:
+
+* ``SubmitActivityTool`` — the Parser/Reviser Agent uses it to hand back a
+  parsed or revised ``ActivitySchema``.
+* ``SubmitPlanTool`` — the Planner Agent uses it to hand back a generated
+  or revised ``PlanSchema``.
+
+Each tool stashes its structured output into a shared state dataclass so
+the calling function can read it after the agent run completes.
 """
 
 from __future__ import annotations
@@ -14,7 +19,12 @@ from typing import Any, Optional
 from pydantic import ValidationError
 from smolagents import Tool
 
-from src.models.schemas import ACTIVITY_SUMMARY_MAX, ActivitySchema, FollowUpQuestion
+from src.models.schemas import (
+    ACTIVITY_SUMMARY_MAX,
+    ActivitySchema,
+    FollowUpQuestion,
+    PlanSchema,
+)
 
 
 @dataclass
@@ -99,3 +109,61 @@ class SubmitActivityTool(Tool):
                 "Do not retry — end the run with final_answer."
             )
         return "Activity recorded. End the run with final_answer."
+
+
+@dataclass
+class SubmitPlanState:
+    """Container the planner tool writes into.
+
+    Either ``plan`` is populated or ``error`` is set when the agent
+    returned data that failed Pydantic validation (e.g. ``week_start``
+    not a Monday).
+    """
+
+    plan: Optional[PlanSchema] = None
+    error: Optional[str] = None
+
+
+class SubmitPlanTool(Tool):
+    """The single tool the Planner Agent calls to return its result."""
+
+    name = "submit_plan"
+    description = (
+        "Submit the generated weekly training plan. Call this exactly once "
+        "per run. Pass `plan=null` only when no plan can be produced from "
+        "the provided context."
+    )
+    inputs: dict[str, dict[str, Any]] = {
+        "plan": {
+            "type": "object",
+            "description": (
+                "PlanSchema as a JSON object (snake_case keys). Required "
+                "fields: week_start (YYYY-MM-DD, must be a Monday), "
+                "activities (list of {day, sport, title, description, "
+                "duration_minutes?, intensity?, completed=false}). "
+                "Optional: rationale. Pass null when no plan can be built."
+            ),
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def __init__(self, state: SubmitPlanState) -> None:
+        super().__init__()
+        self._state = state
+
+    def forward(self, plan: Optional[dict[str, Any]]) -> str:
+        if plan is None:
+            self._state.plan = None
+            return "Recorded: no plan generated. End the run with final_answer."
+
+        try:
+            self._state.plan = PlanSchema(**plan)
+        except ValidationError as exc:
+            self._state.plan = None
+            self._state.error = str(exc)
+            return (
+                "Validation failed: " + str(exc) + ". "
+                "Do not retry — end the run with final_answer."
+            )
+        return "Plan recorded. End the run with final_answer."

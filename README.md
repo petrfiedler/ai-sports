@@ -16,6 +16,9 @@ streamlit run src/ui/app.py
 
 # Run the test suite:
 pytest
+
+# Run the static type checker (uses mypy.ini):
+mypy src/
 ```
 
 See [DESIGN.md](DESIGN.md) and [TECH_STACK.md](TECH_STACK.md) for product spec and architecture, and [ROADMAP.md](ROADMAP.md) for the phase-by-phase build plan.

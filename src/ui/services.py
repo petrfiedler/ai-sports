@@ -7,10 +7,12 @@ framework-agnostic and testable without importing Streamlit.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import streamlit as st
 
 from src.config import get_settings
-from src.models.schemas import ActivitySchema
+from src.models.schemas import ActivitySchema, PlanSchema, ProfileSchema
 from src.services.storage import GitHubStorage
 from src.services.strava_sync import StravaClient
 
@@ -120,3 +122,63 @@ def clear_activity_caches() -> None:
     """Invalidate both the path index and any loaded slices."""
     list_activity_paths.clear()
     load_activities_slice.clear()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_current_plan() -> tuple[PlanSchema, str] | None:
+    """Return the most recent plan in the data repo, if any.
+
+    Cached briefly so navigating away and back doesn't re-hit GitHub. Call
+    :func:`clear_plan_cache` after writing a plan to invalidate.
+    """
+    return get_storage().load_current_plan()
+
+
+def clear_plan_cache() -> None:
+    load_current_plan.clear()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_profile() -> ProfileSchema | None:
+    """Return the user's stored profile, if present."""
+    return get_storage().load_profile()
+
+
+def clear_profile_cache() -> None:
+    load_profile.clear()
+
+
+def load_recent_activities_for_planning(days: int = 14) -> list[ActivitySchema]:
+    """Load activities from the last ``days`` days for the Planner Agent.
+
+    Pulls the cached path index, filters by date prefix, and loads only
+    the matching files. Falls back to an empty list on any error so the
+    planner can still produce a generic plan.
+    """
+    cutoff = date.today() - timedelta(days=days)
+    try:
+        paths = list_activity_paths()
+    except Exception:
+        return []
+    candidates: list[str] = []
+    for p in paths:
+        stem = p.rsplit("/", 1)[-1]
+        date_part = stem[:10]
+        try:
+            d = date.fromisoformat(date_part)
+        except ValueError:
+            continue
+        if d >= cutoff:
+            candidates.append(p)
+    if not candidates:
+        return []
+    loaded = load_activities_slice(tuple(candidates))
+    return [a for _p, a in loaded]
+
+
+def next_monday(today: date | None = None) -> date:
+    """Return the Monday of next week (or this Monday if today is Monday)."""
+    today = today or date.today()
+    if today.weekday() == 0:
+        return today
+    return today + timedelta(days=(7 - today.weekday()))

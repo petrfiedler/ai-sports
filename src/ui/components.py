@@ -1,8 +1,8 @@
 """Reusable Streamlit UI components.
 
 Phase 5 added ``activity_card`` and ``follow_up_panel``. Phase 6 adds
-``render_strength_table``, ``render_endurance_charts``, ``render_followups``;
-Phase 9 will add ``render_plan_day``.
+``render_strength_table``, ``render_endurance_charts``, ``render_followups``.
+Phase 9 adds ``render_plan_day``.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from src.models.schemas import (
     Exercise,
     FollowUpQuestion,
     Lap,
+    PlannedActivity,
     SportType,
 )
 
@@ -380,6 +381,45 @@ def render_streams_charts(streams: dict[str, list[float]]) -> None:
                 yaxis_title="m",
             )
             st.plotly_chart(fig, width="stretch")
+
+
+_WEEKDAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def render_plan_day(
+    planned: PlannedActivity, *, key_prefix: str
+) -> Optional[bool]:
+    """Render one planned-activity card with a completion checkbox.
+
+    Returns the new ``completed`` value when the checkbox state changed
+    versus ``planned.completed``, otherwise ``None``. ``key_prefix`` should
+    uniquely identify the slot within the page (e.g. include the plan's
+    week_start) so widget keys don't collide.
+    """
+    icon = sport_icon(planned.sport)
+    weekday = _WEEKDAY_LABELS[planned.day.weekday()]
+    header = f"{weekday} · {planned.day.isoformat()}"
+
+    with st.container(border=True):
+        st.caption(header)
+        st.markdown(f"### {icon}  {planned.title}")
+        chips: list[str] = []
+        if planned.duration_minutes is not None:
+            chips.append(f"{planned.duration_minutes} min")
+        if planned.intensity:
+            chips.append(f"intensity: {planned.intensity}")
+        if chips:
+            st.caption("  ·  ".join(chips))
+        if planned.description:
+            st.markdown(planned.description)
+        new_value = st.checkbox(
+            "Completed",
+            value=planned.completed,
+            key=f"{key_prefix}_done_{planned.day.isoformat()}",
+        )
+        if new_value != planned.completed:
+            return new_value
+    return None
 
 
 def render_followups(

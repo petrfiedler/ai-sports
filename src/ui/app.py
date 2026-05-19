@@ -32,8 +32,9 @@ def main() -> None:
     st.title("AI Sports Planner")
     st.write(
         "Welcome. Open **Dashboard** from the sidebar to log a workout, "
-        "**Activity Detail** to inspect or edit one, or **Weekly Plan** "
-        "to see your upcoming training week."
+        "**Activity Detail** to inspect or edit one, **Weekly Plan** to "
+        "see your upcoming training week, or **Profile** to tell the "
+        "planner about your goals."
     )
 
 
