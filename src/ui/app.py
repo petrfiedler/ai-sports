@@ -24,7 +24,7 @@ def main() -> None:
     st.set_page_config(
         page_title="AI Sports Planner",
         page_icon="🏃",
-        layout="wide",
+        layout="centered",
         initial_sidebar_state="expanded",
     )
     require_password()
