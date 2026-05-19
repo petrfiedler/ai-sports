@@ -29,13 +29,15 @@ def main() -> None:
     )
     require_password()
 
-    st.title("AI Sports Planner")
-    st.write(
-        "Welcome. Open **Dashboard** from the sidebar to log a workout, "
-        "**Activity Detail** to inspect or edit one, **Weekly Plan** to "
-        "see your upcoming training week, or **Profile** to tell the "
-        "planner about your goals."
-    )
+    pages = [
+        st.Page("pages/1_Dashboard.py", title="Dashboard", icon="📊", default=True),
+        st.Page("pages/2_Activity_Detail.py", title="Activity Detail", icon="🔍"),
+        st.Page("pages/3_Weekly_Plan.py", title="Weekly Plan", icon="📅"),
+        st.Page("pages/4_Profile.py", title="Profile", icon="👤"),
+    ]
+
+    pg = st.navigation(pages)
+    pg.run()
 
 
 main()
