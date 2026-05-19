@@ -87,9 +87,7 @@ def _apply_revision(current: PlanSchema, instruction: str) -> None:
     result = None
     with st.spinner("Revising plan..."):
         try:
-            result = planner_agent.revise_plan(
-                current, instruction, profile=profile
-            )
+            result = planner_agent.revise_plan(current, instruction, profile=profile)
         except Exception as exc:
             st.error(f"Reviser error: {exc}")
 
@@ -109,12 +107,14 @@ def _apply_revision(current: PlanSchema, instruction: str) -> None:
 
 
 def _toggle_completion(
-    current: PlanSchema, body: str, target_day: date, completed: bool
+    current: PlanSchema, body: str, target: PlannedActivity, completed: bool
 ) -> None:
     updated_activities: list[PlannedActivity] = []
+    flipped = False
     for a in current.activities:
-        if a.day == target_day:
+        if not flipped and a == target:
             updated_activities.append(a.model_copy(update={"completed": completed}))
+            flipped = True
         else:
             updated_activities.append(a)
     updated = current.model_copy(update={"activities": updated_activities})
@@ -167,13 +167,10 @@ st.divider()
 # --- Day cards ------------------------------------------------------------
 
 sorted_activities = sorted(plan.activities, key=lambda a: a.day)
-columns = st.columns(min(len(sorted_activities), 7)) if sorted_activities else []
 for i, planned in enumerate(sorted_activities):
-    target = columns[i % len(columns)] if columns else st.container()
-    with target:
-        new_state = render_plan_day(planned, key_prefix=key)
-        if new_state is not None:
-            _toggle_completion(plan, body, planned.day, new_state)
+    new_state = render_plan_day(planned, key_prefix=f"{key}_{i}")
+    if new_state is not None:
+        _toggle_completion(plan, body, planned, new_state)
 
 if not sorted_activities:
     st.info("This plan has no sessions yet — generate a new one or revise it below.")
