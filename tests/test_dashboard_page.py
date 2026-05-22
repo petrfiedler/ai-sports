@@ -58,7 +58,7 @@ def patch_services(
         return window, len(fake_storage.activities)
 
     monkeypatch.setattr("src.ui.services.list_recent_activities", _list)
-    monkeypatch.setattr("src.ui.services.clear_activity_caches", lambda: None)
+    monkeypatch.setattr("src.ui.services.clear_activity_caches", lambda **kwargs: None)
     return fake_storage
 
 

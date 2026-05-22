@@ -7,9 +7,13 @@ framework-agnostic and testable without importing Streamlit.
 
 from __future__ import annotations
 
+import concurrent.futures
+import threading
+import concurrent.futures
 from datetime import date, timedelta
 
 import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 
 from src.config import get_settings
 from src.models.schemas import ActivitySchema, PlanSchema, ProfileSchema
@@ -80,27 +84,42 @@ def list_activity_paths() -> list[str]:
     return get_storage().list_activities()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_single_activity(path: str) -> tuple[str, ActivitySchema] | None:
+    """Cache the loading of a single activity from GitHub."""
+    storage = get_storage()
+    try:
+        loaded = storage.load_activity(path)
+    except Exception:
+        return None
+    if loaded is None:
+        return None
+    activity, _body = loaded
+    return (path, activity)
+
+
 def load_activities_slice(
     paths: tuple[str, ...],
 ) -> list[tuple[str, ActivitySchema]]:
-    """Load a specific slice of activity paths.
+    """Load a specific slice of activity paths concurrently.
 
-    Keyed by the tuple of paths, so loading the same window twice is free.
-    Files that fail to load are skipped silently. Take a tuple (not list) so
-    Streamlit's cache hasher accepts it.
+    Instead of caching the entire slice as one block, we use a thread pool
+    to fetch missing files in parallel, allowing us to cache per-file and
+    avoid re-downloading unchanged activities.
     """
-    storage = get_storage()
     out: list[tuple[str, ActivitySchema]] = []
-    for path in paths:
-        try:
-            loaded = storage.load_activity(path)
-        except Exception:
-            continue
-        if loaded is None:
-            continue
-        activity, _body = loaded
-        out.append((path, activity))
+    
+    ctx = get_script_run_ctx()
+
+    def _run_with_ctx(path: str) -> tuple[str, ActivitySchema] | None:
+        add_script_run_ctx(threading.current_thread(), ctx)
+        return _load_single_activity(path)
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        for res in executor.map(_run_with_ctx, paths):
+            if res is not None:
+                out.append(res)
+                
     return out
 
 
@@ -118,10 +137,15 @@ def list_recent_activities(
     return load_activities_slice(window), len(paths)
 
 
-def clear_activity_caches() -> None:
-    """Invalidate both the path index and any loaded slices."""
+def clear_activity_caches(index_only: bool = False) -> None:
+    """Invalidate activity caches.
+    
+    If index_only is True, we keep the per-file cache intact. This is useful 
+    when adding a new activity, so we don't have to re-download existing ones.
+    """
     list_activity_paths.clear()
-    load_activities_slice.clear()
+    if not index_only:
+        _load_single_activity.clear()
 
 
 @st.cache_data(ttl=60, show_spinner=False)

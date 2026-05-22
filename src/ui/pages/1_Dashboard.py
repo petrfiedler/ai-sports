@@ -113,7 +113,7 @@ if submitted:
             except Exception as exc:
                 st.error(f"Could not save activity: {exc}")
             else:
-                ui_services.clear_activity_caches()
+                ui_services.clear_activity_caches(index_only=True)
                 if result.questions:
                     follow_ups = st.session_state.setdefault("follow_ups", {})
                     follow_ups[path] = [q.model_dump() for q in result.questions]
