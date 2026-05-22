@@ -333,11 +333,11 @@ def render_lap_table(laps: list[Lap]) -> None:
                 "Lap": str(lap.lap_index),
                 "Time": _format_lap_time(lap.moving_time_s or lap.elapsed_time_s),
                 "Distance": (
-                    f"{lap.distance_m / 1000.0:.2f} km"
-                    if lap.distance_m
-                    else "—"
+                    f"{lap.distance_m / 1000.0:.2f} km" if lap.distance_m else "—"
                 ),
-                "Pace": _format_lap_pace(lap.distance_m, lap.moving_time_s or lap.elapsed_time_s),
+                "Pace": _format_lap_pace(
+                    lap.distance_m, lap.moving_time_s or lap.elapsed_time_s
+                ),
                 "Avg HR": f"{lap.avg_heart_rate} bpm" if lap.avg_heart_rate else "—",
                 "Elev. gain": (
                     f"{lap.elevation_gain_m:.0f} m"
@@ -380,7 +380,9 @@ def render_streams_charts(streams: dict[str, list[float]]) -> None:
         with col_hr:
             st.markdown("**Heart rate**")
             x_min = [t / 60.0 for t in time_s]
-            fig = go.Figure(go.Scatter(x=x_min, y=hr, mode="lines", line=dict(color="#e63946")))
+            fig = go.Figure(
+                go.Scatter(x=x_min, y=hr, mode="lines", line=dict(color="#e63946"))
+            )
             fig.update_layout(
                 height=240,
                 margin=dict(l=0, r=0, t=10, b=0),
@@ -393,7 +395,15 @@ def render_streams_charts(streams: dict[str, list[float]]) -> None:
         with col_alt:
             st.markdown("**Elevation**")
             x_km = [d / 1000.0 for d in distance_m]
-            fig = go.Figure(go.Scatter(x=x_km, y=altitude, mode="lines", line=dict(color="#2a9d8f"), fill="tozeroy"))
+            fig = go.Figure(
+                go.Scatter(
+                    x=x_km,
+                    y=altitude,
+                    mode="lines",
+                    line=dict(color="#2a9d8f"),
+                    fill="tozeroy",
+                )
+            )
             fig.update_layout(
                 height=240,
                 margin=dict(l=0, r=0, t=10, b=0),
@@ -406,9 +416,7 @@ def render_streams_charts(streams: dict[str, list[float]]) -> None:
 _WEEKDAY_LABELS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
-def render_plan_day(
-    planned: PlannedActivity, *, key_prefix: str
-) -> Optional[bool]:
+def render_plan_day(planned: PlannedActivity, *, key_prefix: str) -> Optional[bool]:
     """Render one planned-activity card with a completion checkbox.
 
     Returns the new ``completed`` value when the checkbox state changed
