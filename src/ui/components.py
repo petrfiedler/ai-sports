@@ -92,6 +92,15 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
             st.caption(caption)
             if activity.summary:
                 st.markdown(activity.summary)
+            if activity.metrics and activity.metrics.photo_urls:
+                imgs_html = "".join(
+                    f'<img src="{url}" style="height: 120px; flex-shrink: 0; margin-right: 8px; border-radius: 6px;">'
+                    for url in activity.metrics.photo_urls
+                )
+                st.markdown(
+                    f'<div style="display: flex; overflow: hidden; width: 100%; margin-top: 8px; margin-bottom: 16px;">{imgs_html}</div>',
+                    unsafe_allow_html=True,
+                )
         with col_action:
             return st.button("Open", key=f"open_{path}", width="stretch")
 
