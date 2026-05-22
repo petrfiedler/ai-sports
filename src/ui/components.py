@@ -98,7 +98,7 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
                     for url in activity.metrics.photo_urls
                 )
                 st.markdown(
-                    f'<div style="display: flex; overflow: hidden; width: 100%; margin-top: 8px; margin-bottom: 16px;">{imgs_html}</div>',
+                    f'<div style="display: flex; overflow: hidden; width: 100%; margin-top: 0px; margin-bottom: 16px;">{imgs_html}</div>',
                     unsafe_allow_html=True,
                 )
         with col_action:
