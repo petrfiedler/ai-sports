@@ -20,6 +20,7 @@ from src.models.schemas import ActivitySchema, FollowUpQuestion, SportType
 from src.ui import services as ui_services
 from src.ui.auth import require_password
 from src.ui.components import (
+    format_date,
     page_header,
     render_endurance_charts,
     render_followups,
@@ -111,7 +112,7 @@ activity, body = loaded
 # --- Header ----------------------------------------------------------------
 
 icon = sport_icon(activity.sport)
-page_header(f"{icon}  {activity.title}", activity.activity_date.isoformat())
+page_header(f"{icon}  {activity.title}", format_date(activity.activity_date))
 
 chips: list[str] = [f"{activity.duration_minutes} min"]
 if activity.location:

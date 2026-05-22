@@ -21,7 +21,7 @@ from src.agents import planner_agent
 from src.models.schemas import PlanSchema, PlannedActivity, ProfileSchema
 from src.ui import services as ui_services
 from src.ui.auth import require_password
-from src.ui.components import page_header, render_plan_day
+from src.ui.components import format_date, page_header, render_plan_day
 
 require_password()
 
@@ -73,7 +73,7 @@ def _generate(week_start: date) -> None:
 
     body = result.plan.rationale or ""
     if _save_plan(result.plan, body):
-        st.success(f"Plan generated for week of {result.plan.week_start.isoformat()}.")
+        st.success(f"Plan generated for week of {format_date(result.plan.week_start)}.")
         st.rerun()
 
 
@@ -133,7 +133,7 @@ except Exception as exc:
 if loaded is None:
     next_mon = ui_services.next_monday()
     st.info(
-        f"No plan yet. Generate one for the week of **{next_mon.isoformat()}** "
+        f"No plan yet. Generate one for the week of **{format_date(next_mon)}** "
         "(Monday) — it'll be based on your profile and recent activities."
     )
     if st.button("Generate plan", type="primary"):
@@ -146,7 +146,7 @@ key = _key_for(plan)
 # --- Header ---------------------------------------------------------------
 
 week_end = plan.week_start + timedelta(days=6)
-st.subheader(f"Week of {plan.week_start.isoformat()} → {week_end.isoformat()}")
+st.subheader(f"Week of {format_date(plan.week_start)} → {format_date(week_end)}")
 
 total_minutes = sum(a.duration_minutes or 0 for a in plan.activities)
 completed_count = sum(1 for a in plan.activities if a.completed)

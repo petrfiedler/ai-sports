@@ -7,6 +7,7 @@ Phase 9 adds ``render_plan_day``.
 
 from __future__ import annotations
 
+import datetime
 from typing import Iterable, Optional
 
 import streamlit as st
@@ -20,6 +21,25 @@ from src.models.schemas import (
     PlannedActivity,
     SportType,
 )
+
+
+def format_date(d: datetime.date) -> str:
+    """Format a date based on user's relative rules."""
+    today = datetime.date.today()
+    delta_days = (today - d).days
+
+    if delta_days == 0:
+        return f"Today, {d.strftime('%B')} {d.day}"
+    elif delta_days == 1:
+        return f"Yesterday, {d.strftime('%B')} {d.day}"
+    elif 1 < delta_days <= 6:
+        # In last 7 days (and not today or yesterday)
+        return f"{d.strftime('%A')}, {d.strftime('%B')} {d.day}"
+    elif d.year == today.year:
+        return f"{d.strftime('%B')} {d.day}"
+    else:
+        return f"{d.strftime('%B')} {d.day}, {d.year}"
+
 
 _SPORT_ICONS: dict[str, str] = {
     SportType.RUNNING.value: "🏃",
@@ -56,7 +76,7 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
     truthy.
     """
     icon = sport_icon(activity.sport)
-    when = activity.activity_date.isoformat()
+    when = format_date(activity.activity_date)
     duration_str = f"{activity.duration_minutes} min"
     parts = [when, duration_str]
     if activity.location:
@@ -397,8 +417,7 @@ def render_plan_day(
     week_start) so widget keys don't collide.
     """
     icon = sport_icon(planned.sport)
-    weekday = _WEEKDAY_LABELS[planned.day.weekday()]
-    header = f"{weekday} · {planned.day.isoformat()}"
+    header = format_date(planned.day)
 
     with st.container(border=True):
         st.caption(header)
