@@ -109,7 +109,9 @@ if submitted:
         else:
             try:
                 with st.spinner("Saving..."):
-                    path = ui_services.get_storage().save_activity(result.activity, body=text)
+                    path = ui_services.get_storage().save_activity(
+                        result.activity, body=text
+                    )
             except Exception as exc:
                 st.error(f"Could not save activity: {exc}")
             else:
@@ -168,7 +170,21 @@ else:
     st.divider()
 
     follow_ups_state: dict[str, list[dict]] = st.session_state.get("follow_ups", {})
+    last_month_tuple = None
+
     for path, activity in activities:
+        current_month_tuple = (
+            activity.activity_date.year,
+            activity.activity_date.month,
+        )
+        if current_month_tuple != last_month_tuple:
+            if activity.activity_date.year == today.year:
+                header_text = activity.activity_date.strftime("%B")
+            else:
+                header_text = activity.activity_date.strftime("%B %Y")
+            st.markdown(f"**{header_text}**")
+            last_month_tuple = current_month_tuple
+
         clicked = activity_card(activity, path)
         pending = follow_ups_state.get(path)
         if pending:
@@ -181,7 +197,5 @@ else:
     st.caption(f"Showing {len(activities)} of {total_count} activities.")
     if len(activities) < total_count:
         if st.button(f"Load {min(_PAGE_SIZE, total_count - len(activities))} more"):
-            st.session_state["dashboard_displayed_count"] = (
-                displayed_count + _PAGE_SIZE
-            )
+            st.session_state["dashboard_displayed_count"] = displayed_count + _PAGE_SIZE
             st.rerun()
