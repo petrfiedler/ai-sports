@@ -91,7 +91,7 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
             st.markdown(f"### {icon}  {activity.title}")
             st.caption(caption)
             if activity.summary:
-                st.markdown(activity.summary)
+                st.text(activity.summary)
             if activity.metrics and activity.metrics.photo_urls:
                 imgs_html = "".join(
                     f'<img src="{url}" style="height: 120px; flex-shrink: 0; margin-right: 8px; border-radius: 6px;">'
@@ -447,7 +447,7 @@ def render_plan_day(planned: PlannedActivity, *, key_prefix: str) -> Optional[bo
         if chips:
             st.caption("  ·  ".join(chips))
         if planned.description:
-            st.markdown(planned.description)
+            st.text(planned.description)
         new_value = st.checkbox(
             "Completed",
             value=planned.completed,

@@ -124,7 +124,7 @@ if activity.rpe:
 st.caption("  ·  ".join(chips))
 
 if activity.summary:
-    st.markdown(f"**{activity.summary}**")
+    st.text(activity.summary)
 
 st.divider()
 
