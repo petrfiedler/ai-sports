@@ -63,7 +63,8 @@ def patch_services(
 
 
 def _authenticate(at: AppTest) -> AppTest:
-    at.text_input[0].set_value(PASSWORD).run()
+    at.session_state["authenticated"] = True
+    at.run()
     return at
 
 

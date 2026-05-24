@@ -86,12 +86,8 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
     if activity.rpe:
         parts.append(f"RPE {activity.rpe}")
     caption = "  ·  ".join(parts)
-    
-    # Create a completely safe CSS class name derived from the path
-    safe_path_class = "click-card-" + re.sub(r'[^a-zA-Z0-9]', '', path)
 
     with st.container(border=True):
-        st.markdown(f'<div class="{safe_path_class}"></div>', unsafe_allow_html=True)
         st.markdown(f"### {icon}  {activity.title}")
         st.caption(caption)
         if activity.summary:
@@ -112,44 +108,52 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
             clicked = st.button("Open", key=f"open_{path}", help="Hidden click target")
         
         # JS hack to simulate a click on the button when the parent container is clicked.
-        # We find the parent with standard streamlit styling classes by going up until we find the containing bordered block.
-        # We style the cursor to be a pointer and delegate clicks.
+        # We also hide the iframe container and the button container to eliminate extra whitespace.
         st.components.v1.html(
-            f"""
+            """
             <script>
-            const doc = window.parent.document;
-            const markers = doc.querySelectorAll('.{safe_path_class}');
-            if (markers.length > 0) {{
-                const marker = markers[markers.length - 1];
-                let card = marker.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
-                if (!card) {{
-                    card = marker.closest('div[data-testid="stVerticalBlock"]');
-                }}
-                if (card) {{
+            const iframe = window.frameElement;
+            if (iframe) {
+                const iframeContainer = iframe.closest('div.element-container');
+                let card = iframe.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
+                if (!card) {
+                    card = iframe.closest('div[data-testid="stVerticalBlock"]');
+                }
+                
+                if (card) {
                     // Make it look clickable
                     card.style.cursor = 'pointer';
+                    
+                    // Hide iframe's container to completely remove its vertical whitespace
+                    if (iframeContainer) {
+                        iframeContainer.style.display = 'none';
+                    }
+                    
                     // Prevent multiple listeners
-                    if (!card.dataset.hasClickListener) {{
+                    if (!card.dataset.hasClickListener) {
                         card.dataset.hasClickListener = 'true';
-                        card.addEventListener('click', function(e) {{
+                        card.addEventListener('click', function(e) {
                             // Allow clicking the actual checkbox or actual inputs if any exist inside
                             if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
                             
                             // Find our specific hidden button for this exact card
                             const btn = card.querySelector('button[kind="secondary"]');
                             if (btn) btn.click();
-                        }});
+                        });
                         
-                        // Hide the actual button physically, but let it be rendered in DOM so click works
+                        // Hide the actual button's container to completely remove its vertical whitespace
                         const btns = card.querySelectorAll('button[kind="secondary"]');
-                        btns.forEach(b => {{
-                            if (b.innerText.trim() === "Open") {{
-                                b.style.display = 'none';
-                            }}
-                        }});
-                    }}
-                }}
-            }}
+                        btns.forEach(b => {
+                            if (b.innerText.trim() === "Open") {
+                                const btnContainer = b.closest('div.element-container');
+                                if (btnContainer) {
+                                    btnContainer.style.display = 'none';
+                                }
+                            }
+                        });
+                    }
+                }
+            }
             </script>
             """,
             height=0,
