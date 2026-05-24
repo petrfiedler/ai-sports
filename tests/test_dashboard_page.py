@@ -10,7 +10,6 @@ from streamlit.testing.v1 import AppTest
 from src.config import get_settings
 from src.models.schemas import ActivitySchema, FollowUpQuestion, ParseResult, SportType
 
-
 DASHBOARD_PAGE = "src/ui/pages/1_Dashboard.py"
 PASSWORD = "letmein"
 
@@ -75,7 +74,9 @@ def test_password_gate_blocks_until_correct(patch_services: FakeStorage) -> None
     assert not any(h.value == "Dashboard" for h in at.header)
 
 
-def test_empty_state_renders_for_authenticated_user(patch_services: FakeStorage) -> None:
+def test_empty_state_renders_for_authenticated_user(
+    patch_services: FakeStorage,
+) -> None:
     at = AppTest.from_file(DASHBOARD_PAGE).run()
     _authenticate(at)
     assert not at.exception
@@ -201,6 +202,4 @@ def test_quick_add_stashes_follow_up_questions(
     assert not at.exception
     assert "follow_ups" in at.session_state
     follow_ups = at.session_state["follow_ups"]
-    assert any(
-        any(q["field"] == "rpe" for q in qs) for qs in follow_ups.values()
-    )
+    assert any(any(q["field"] == "rpe" for q in qs) for qs in follow_ups.values())
