@@ -77,7 +77,7 @@ def require_password() -> None:
                     window.parent.location.reload();
                 </script>
             """
-            st.components.v1.html(js_code, height=0)
+            st.iframe(js_code, height="content")
 
             # Immediately halt execution so the frontend can receive the JS block and navigate
             st.stop()
