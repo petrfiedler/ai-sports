@@ -8,11 +8,9 @@ Phase 9 adds ``render_plan_day``.
 from __future__ import annotations
 
 import datetime
-import re
 from typing import Iterable, Optional
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from src.models.schemas import (
     ActivitySchema,
@@ -88,7 +86,10 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
     caption = "  ·  ".join(parts)
 
     with st.container(border=True):
-        st.markdown(f"### {icon}  {activity.title}")
+        st.markdown(
+            f'<h3 style="margin-top: 0; padding-top: 4px; padding-bottom: 4px;">{icon}  {activity.title}</h3>',
+            unsafe_allow_html=True,
+        )
         st.caption(caption)
         if activity.summary:
             st.text(activity.summary)
@@ -101,15 +102,15 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
                 f'<div style="display: flex; overflow: hidden; width: 100%; margin-top: 0px; margin-bottom: 16px;">{imgs_html}</div>',
                 unsafe_allow_html=True,
             )
-            
+
         # We put a hidden button here that the JS will virtually click
         btn_container = st.empty()
         with btn_container:
             clicked = st.button("Open", key=f"open_{path}", help="Hidden click target")
-        
+
         # JS hack to simulate a click on the button when the parent container is clicked.
         # We also hide the iframe container and the button container to eliminate extra whitespace.
-        st.components.v1.html(
+        st.iframe(
             """
             <script>
             const iframe = window.frameElement;
@@ -156,8 +157,8 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
             }
             </script>
             """,
-            height=0,
-            width=0,
+            height="content",
+            width="content",
         )
 
         return clicked
