@@ -8,9 +8,11 @@ Phase 9 adds ``render_plan_day``.
 from __future__ import annotations
 
 import datetime
+import re
 from typing import Iterable, Optional
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.models.schemas import (
     ActivitySchema,
@@ -84,25 +86,77 @@ def activity_card(activity: ActivitySchema, path: str) -> bool:
     if activity.rpe:
         parts.append(f"RPE {activity.rpe}")
     caption = "  ·  ".join(parts)
+    
+    # Create a completely safe CSS class name derived from the path
+    safe_path_class = "click-card-" + re.sub(r'[^a-zA-Z0-9]', '', path)
 
     with st.container(border=True):
-        col_main, col_action = st.columns([5, 1])
-        with col_main:
-            st.markdown(f"### {icon}  {activity.title}")
-            st.caption(caption)
-            if activity.summary:
-                st.text(activity.summary)
-            if activity.metrics and activity.metrics.photo_urls:
-                imgs_html = "".join(
-                    f'<img src="{url}" style="height: 120px; flex-shrink: 0; margin-right: 8px; border-radius: 6px;">'
-                    for url in activity.metrics.photo_urls
-                )
-                st.markdown(
-                    f'<div style="display: flex; overflow: hidden; width: 100%; margin-top: 0px; margin-bottom: 16px;">{imgs_html}</div>',
-                    unsafe_allow_html=True,
-                )
-        with col_action:
-            return st.button("Open", key=f"open_{path}", width="stretch")
+        st.markdown(f'<div class="{safe_path_class}"></div>', unsafe_allow_html=True)
+        st.markdown(f"### {icon}  {activity.title}")
+        st.caption(caption)
+        if activity.summary:
+            st.text(activity.summary)
+        if activity.metrics and activity.metrics.photo_urls:
+            imgs_html = "".join(
+                f'<img src="{url}" style="height: 120px; flex-shrink: 0; margin-right: 8px; border-radius: 6px;">'
+                for url in activity.metrics.photo_urls
+            )
+            st.markdown(
+                f'<div style="display: flex; overflow: hidden; width: 100%; margin-top: 0px; margin-bottom: 16px;">{imgs_html}</div>',
+                unsafe_allow_html=True,
+            )
+            
+        # We put a hidden button here that the JS will virtually click
+        btn_container = st.empty()
+        with btn_container:
+            clicked = st.button("Open", key=f"open_{path}", help="Hidden click target")
+        
+        # JS hack to simulate a click on the button when the parent container is clicked.
+        # We find the parent with standard streamlit styling classes by going up until we find the containing bordered block.
+        # We style the cursor to be a pointer and delegate clicks.
+        st.components.v1.html(
+            f"""
+            <script>
+            const doc = window.parent.document;
+            const markers = doc.querySelectorAll('.{safe_path_class}');
+            if (markers.length > 0) {{
+                const marker = markers[markers.length - 1];
+                let card = marker.closest('div[data-testid="stVerticalBlockBorderWrapper"]');
+                if (!card) {{
+                    card = marker.closest('div[data-testid="stVerticalBlock"]');
+                }}
+                if (card) {{
+                    // Make it look clickable
+                    card.style.cursor = 'pointer';
+                    // Prevent multiple listeners
+                    if (!card.dataset.hasClickListener) {{
+                        card.dataset.hasClickListener = 'true';
+                        card.addEventListener('click', function(e) {{
+                            // Allow clicking the actual checkbox or actual inputs if any exist inside
+                            if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+                            
+                            // Find our specific hidden button for this exact card
+                            const btn = card.querySelector('button[kind="secondary"]');
+                            if (btn) btn.click();
+                        }});
+                        
+                        // Hide the actual button physically, but let it be rendered in DOM so click works
+                        const btns = card.querySelectorAll('button[kind="secondary"]');
+                        btns.forEach(b => {{
+                            if (b.innerText.trim() === "Open") {{
+                                b.style.display = 'none';
+                            }}
+                        }});
+                    }}
+                }}
+            }}
+            </script>
+            """,
+            height=0,
+            width=0,
+        )
+
+        return clicked
 
 
 def follow_up_panel(questions: Iterable[FollowUpQuestion]) -> None:
