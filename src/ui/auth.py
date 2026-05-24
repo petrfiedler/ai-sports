@@ -7,7 +7,6 @@ as its first statement so direct navigation cannot bypass the gate.
 
 from __future__ import annotations
 
-import time
 from hmac import compare_digest
 
 import streamlit as st
@@ -16,8 +15,6 @@ from src.config import get_settings
 
 _AUTH_KEY = "authenticated"
 _INPUT_KEY = "_password_input"
-_COOKIE_KEY = "ai_sports_auth_session"
-_COOKIE_EXPIRY_DAYS = 30
 
 
 def _check_password(entered: str) -> bool:
@@ -40,12 +37,6 @@ def require_password() -> None:
     if st.session_state.get(_AUTH_KEY):
         return
 
-    # Check native cookie (Streamlit 1.40+)
-    if hasattr(st, "context") and hasattr(st.context, "cookies"):
-        if st.context.cookies.get(_COOKIE_KEY) == "true":
-            st.session_state[_AUTH_KEY] = True
-            return
-
     gate_container = st.empty()
 
     with gate_container.container():
@@ -67,20 +58,7 @@ def require_password() -> None:
 
     if submitted:
         if _check_password(entered_password):
-            # Set cookie natively using JavaScript and trigger a hard page reload
-            # A browser hard-reload instantly tells Firefox that a form submission resulted
-            # in navigation, which is the strongest trigger for the "Save Password" prompt
-            cookie_str = f"{_COOKIE_KEY}=true; max-age={_COOKIE_EXPIRY_DAYS * 24 * 60 * 60}; path=/;"
-            js_code = f"""
-                <script>
-                    window.parent.document.cookie = "{cookie_str}";
-                    window.parent.location.reload();
-                </script>
-            """
-            st.iframe(js_code, height="content")
-
-            # Immediately halt execution so the frontend can receive the JS block and navigate
-            st.stop()
+            st.rerun()
         else:
             with gate_container.container():
                 st.error("Incorrect password.")
