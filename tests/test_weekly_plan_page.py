@@ -17,9 +17,9 @@ from src.models.schemas import (
     SportType,
 )
 
-
 PLAN_PAGE = "src/ui/pages/3_Weekly_Plan.py"
 PASSWORD = "letmein"
+CURRENT_MONDAY = date(2026, 5, 11)
 NEXT_MONDAY = date(2026, 5, 18)
 
 
@@ -70,6 +70,9 @@ def patch_services(
         "src.ui.services.load_recent_activities_for_planning", lambda days=14: []
     )
     monkeypatch.setattr("src.ui.services.clear_plan_cache", lambda: None)
+    monkeypatch.setattr(
+        "src.ui.services.current_monday", lambda today=None: CURRENT_MONDAY
+    )
     monkeypatch.setattr("src.ui.services.next_monday", lambda today=None: NEXT_MONDAY)
     return fake_storage
 
@@ -174,9 +177,11 @@ def test_revise_applies_edit_and_saves(
     fake_storage.plan = (current, current.rationale or "")
 
     revised_activities = [
-        a.model_copy(update={"day": a.day + timedelta(days=1)})
-        if a.sport == SportType.STRENGTH.value
-        else a
+        (
+            a.model_copy(update={"day": a.day + timedelta(days=1)})
+            if a.sport == SportType.STRENGTH.value
+            else a
+        )
         for a in current.activities
     ]
     revised = current.model_copy(update={"activities": revised_activities})

@@ -131,13 +131,13 @@ except Exception as exc:
     st.stop()
 
 if loaded is None:
-    next_mon = ui_services.next_monday()
+    curr_mon = ui_services.current_monday()
     st.info(
-        f"No plan yet. Generate one for the week of **{format_date(next_mon)}** "
+        f"No plan yet. Generate one for the current week starting **{format_date(curr_mon)}** "
         "(Monday) — it'll be based on your profile and recent activities."
     )
     if st.button("Generate plan", type="primary"):
-        _generate(next_mon)
+        _generate(curr_mon)
     st.stop()
 
 plan, body = loaded
@@ -199,7 +199,27 @@ st.divider()
 
 # --- Regenerate ------------------------------------------------------------
 
-with st.popover("🔁 Regenerate from scratch"):
-    st.warning("This overwrites the current plan for this week.")
-    if st.button("Confirm regenerate", type="primary", key="confirm_regenerate"):
-        _generate(plan.week_start)
+col1, col2 = st.columns(2)
+
+with col1:
+    with st.popover("🔁 Regenerate this plan"):
+        st.warning(
+            f"This overwrites the current plan for the week of {format_date(plan.week_start)}."
+        )
+        if st.button("Confirm regenerate", type="primary", key="confirm_regenerate"):
+            _generate(plan.week_start)
+
+curr_mon = ui_services.current_monday()
+next_mon = ui_services.next_monday()
+
+with col2:
+    if plan.week_start < curr_mon:
+        with st.popover("📆 Plan for current week"):
+            st.info(f"Generate a new plan for the week of {format_date(curr_mon)}.")
+            if st.button("Generate new plan", type="primary", key="generate_current"):
+                _generate(curr_mon)
+    else:
+        with st.popover("📅 Plan for next week"):
+            st.info(f"Generate a new plan for the week of {format_date(next_mon)}.")
+            if st.button("Generate new plan", type="primary", key="generate_next"):
+                _generate(next_mon)

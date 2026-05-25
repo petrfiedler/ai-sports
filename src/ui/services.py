@@ -108,18 +108,18 @@ def load_activities_slice(
     avoid re-downloading unchanged activities.
     """
     out: list[tuple[str, ActivitySchema]] = []
-    
+
     ctx = get_script_run_ctx()
 
     def _run_with_ctx(path: str) -> tuple[str, ActivitySchema] | None:
         add_script_run_ctx(threading.current_thread(), ctx)
         return _load_single_activity(path)
-    
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         for res in executor.map(_run_with_ctx, paths):
             if res is not None:
                 out.append(res)
-                
+
     return out
 
 
@@ -139,8 +139,8 @@ def list_recent_activities(
 
 def clear_activity_caches(index_only: bool = False) -> None:
     """Invalidate activity caches.
-    
-    If index_only is True, we keep the per-file cache intact. This is useful 
+
+    If index_only is True, we keep the per-file cache intact. This is useful
     when adding a new activity, so we don't have to re-download existing ones.
     """
     list_activity_paths.clear()
@@ -198,6 +198,12 @@ def load_recent_activities_for_planning(days: int = 14) -> list[ActivitySchema]:
         return []
     loaded = load_activities_slice(tuple(candidates))
     return [a for _p, a in loaded]
+
+
+def current_monday(today: date | None = None) -> date:
+    """Return the Monday of the current week."""
+    today = today or date.today()
+    return today - timedelta(days=today.weekday())
 
 
 def next_monday(today: date | None = None) -> date:
