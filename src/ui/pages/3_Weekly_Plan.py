@@ -84,10 +84,17 @@ def _apply_revision(current: PlanSchema, instruction: str) -> None:
     except Exception:
         pass
 
+    try:
+        recent = ui_services.load_recent_activities_for_planning()
+    except Exception:
+        recent = []
+
     result = None
     with st.spinner("Revising plan..."):
         try:
-            result = planner_agent.revise_plan(current, instruction, profile=profile)
+            result = planner_agent.revise_plan(
+                current, instruction, profile=profile, recent_activities=recent
+            )
         except Exception as exc:
             st.error(f"Reviser error: {exc}")
 

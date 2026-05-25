@@ -121,6 +121,7 @@ def _build_revise_task(
     current: PlanSchema,
     instruction: str,
     profile: Optional[ProfileSchema],
+    recent: list[ActivitySchema],
     today: date,
 ) -> str:
     current_json = current.model_dump(mode="json", exclude_none=True)
@@ -129,8 +130,9 @@ def _build_revise_task(
         if profile is not None
         else None
     )
+    recent_json = [_summarize_activity(a) for a in recent]
     return (
-        plan_reviser_system_prompt(today, current_json, profile_json)
+        plan_reviser_system_prompt(today, current_json, profile_json, recent_json)
         + "\n\n=== Edit instruction ===\n"
         + instruction.strip()
         + "\n=== End of instruction ===\n\n"
@@ -207,6 +209,7 @@ def revise_plan(
     instruction: str,
     *,
     profile: Optional[ProfileSchema] = None,
+    recent_activities: Optional[list[ActivitySchema]] = None,
     today: Optional[date] = None,
     model: Optional[Model] = None,
     max_steps: Optional[int] = None,
@@ -223,6 +226,7 @@ def revise_plan(
         current: The plan to edit.
         instruction: Free-text edit instruction (Czech or English).
         profile: Optional profile for constraint-aware edits.
+        recent_activities: Recent activity log.
         today: Reference date. Defaults to ``date.today()``.
         model: Optional smolagents ``Model`` override (tests inject one).
         max_steps: Optional cap on agent steps.
@@ -234,6 +238,7 @@ def revise_plan(
         )
 
     today = today or date.today()
+    recent = _filter_recent(recent_activities, today) if recent_activities else []
 
     model, max_steps, err = _resolve_model_and_steps(model, max_steps)
     if err is not None:
@@ -245,7 +250,7 @@ def revise_plan(
     agent = ToolCallingAgent(tools=[tool], model=model, max_steps=max_steps)
 
     try:
-        agent.run(_build_revise_task(current, instruction, profile, today))
+        agent.run(_build_revise_task(current, instruction, profile, recent, today))
     except Exception:
         if state.plan is None:
             return PlanResult(

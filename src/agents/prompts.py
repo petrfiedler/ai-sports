@@ -195,7 +195,10 @@ Rules:
 
 
 def plan_reviser_system_prompt(
-    today: date, current_plan: dict[str, Any], profile: dict[str, Any] | None = None
+    today: date,
+    current_plan: dict[str, Any],
+    profile: dict[str, Any] | None = None,
+    recent_summary: list[dict[str, Any]] | None = None,
 ) -> str:
     """Format the plan-reviser prompt with reference date, current plan, and optional profile."""
     weekday = today.strftime("%A")
@@ -224,4 +227,8 @@ def plan_reviser_system_prompt(
         parts.append("\n\n=== User profile (JSON) ===\n")
         parts.append(json.dumps(profile, indent=2, default=str))
         parts.append("\n=== End of profile ===")
+    if recent_summary is not None:
+        parts.append("\n\n=== Last 14 days of activity (newest first) ===\n")
+        parts.append(json.dumps(recent_summary, indent=2, default=str))
+        parts.append("\n=== End of history ===")
     return "".join(parts)
