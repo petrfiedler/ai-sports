@@ -25,6 +25,7 @@ from src.models.schemas import (
 )
 from src.services.storage import GitHubStorage
 from src.services.strava_sync import StravaClient, StravaError, StravaRateLimitError
+from src.agents.parser_agent import revise_activity
 
 # Initial sync should cover the full history; subsequent syncs short-circuit
 # via the dedup set so this only matters once per athlete.
@@ -108,11 +109,25 @@ def _map_laps(raw_laps: Any) -> list[Lap]:
                 Lap(
                     lap_index=int(raw.get("lap_index", i)),
                     elapsed_time_s=int(raw.get("elapsed_time") or 0),
-                    moving_time_s=(int(raw["moving_time"]) if raw.get("moving_time") else None),
-                    distance_m=(float(raw["distance"]) if raw.get("distance") else None),
-                    avg_heart_rate=(int(raw["average_heartrate"]) if raw.get("average_heartrate") else None),
-                    max_heart_rate=(int(raw["max_heartrate"]) if raw.get("max_heartrate") else None),
-                    avg_speed_ms=(float(raw["average_speed"]) if raw.get("average_speed") else None),
+                    moving_time_s=(
+                        int(raw["moving_time"]) if raw.get("moving_time") else None
+                    ),
+                    distance_m=(
+                        float(raw["distance"]) if raw.get("distance") else None
+                    ),
+                    avg_heart_rate=(
+                        int(raw["average_heartrate"])
+                        if raw.get("average_heartrate")
+                        else None
+                    ),
+                    max_heart_rate=(
+                        int(raw["max_heartrate"]) if raw.get("max_heartrate") else None
+                    ),
+                    avg_speed_ms=(
+                        float(raw["average_speed"])
+                        if raw.get("average_speed")
+                        else None
+                    ),
                     elevation_gain_m=raw.get("total_elevation_gain"),
                 )
             )
@@ -143,8 +158,16 @@ def _map_splits(raw_splits: Any) -> list[Lap]:
                     elapsed_time_s=int(raw.get("elapsed_time") or moving),
                     moving_time_s=int(moving),
                     distance_m=float(raw["distance"]) if raw.get("distance") else None,
-                    avg_heart_rate=int(raw["average_heartrate"]) if raw.get("average_heartrate") else None,
-                    avg_speed_ms=float(raw["average_speed"]) if raw.get("average_speed") else None,
+                    avg_heart_rate=(
+                        int(raw["average_heartrate"])
+                        if raw.get("average_heartrate")
+                        else None
+                    ),
+                    avg_speed_ms=(
+                        float(raw["average_speed"])
+                        if raw.get("average_speed")
+                        else None
+                    ),
                     elevation_gain_m=raw.get("elevation_difference"),
                 )
             )
@@ -200,7 +223,9 @@ def _build_metrics(
         distance_km=distance_km,
         avg_pace=_pace_from_summary(src),
         avg_speed_kmh=avg_speed_kmh,
-        avg_heart_rate=int(src["average_heartrate"]) if src.get("average_heartrate") else None,
+        avg_heart_rate=(
+            int(src["average_heartrate"]) if src.get("average_heartrate") else None
+        ),
         max_heart_rate=int(src["max_heartrate"]) if src.get("max_heartrate") else None,
         elevation_gain_m=src.get("total_elevation_gain"),
         calories=int(src["calories"]) if src.get("calories") else None,
@@ -235,9 +260,29 @@ def _activity_from_summary(
         intensity=_intensity_from_hr(summary.get("average_heartrate")),
         location=location,
         summary=_truncate(description) if description else None,
-        notes=description if description and len(description) > ACTIVITY_SUMMARY_MAX else None,
+        notes=(
+            description
+            if description and len(description) > ACTIVITY_SUMMARY_MAX
+            else None
+        ),
         metrics=metrics,
     )
+
+
+def _enhance_with_llm(activity: ActivitySchema, description: str) -> ActivitySchema:
+    """Passes the drafted activity and raw description to the parser to extract exercises & sets."""
+    if not description:
+        return activity
+
+    instruction = (
+        "Extract any structured data (especially strength exercises, sets, reps, lengths, weights) "
+        "from the following Strava description and add it to the activity's exercises list. "
+        "Keep the existing core metrics (sport, duration, distance, date) EXACTLY as they are. "
+        f"Description: {description}"
+    )
+
+    result = revise_activity(activity, instruction, today=activity.activity_date)
+    return result.activity or activity
 
 
 def _existing_strava_ids(storage: GitHubStorage) -> set[int]:
@@ -332,10 +377,20 @@ def _refresh_stale_activities(
             # API, partial test stub), fall back to the stored date so we
             # don't blow up on parsing.
             if not detail.get("start_date_local") and not detail.get("start_date"):
-                detail = {**detail, "start_date_local": activity.activity_date.isoformat() + "T00:00:00Z"}
+                detail = {
+                    **detail,
+                    "start_date_local": activity.activity_date.isoformat()
+                    + "T00:00:00Z",
+                }
             if not detail.get("id"):
                 detail = {**detail, "id": strava_id}
             refreshed = _activity_from_summary(detail, photo_urls, detail)
+
+            # Enhance with LLM parsing if a description is present
+            desc = (detail.get("description") or "").strip()
+            if desc:
+                refreshed = _enhance_with_llm(refreshed, desc)
+
             # Preserve user-edited fields. Title / rpe / intensity / notes
             # could all have been touched via the reviser agent.
             refreshed.title = activity.title
@@ -426,6 +481,12 @@ def sync_recent(
             # list endpoint). Empty dict on failure → we just lose those fields.
             detail = client.activity_detail(strava_id)
             activity = _activity_from_summary(summary, photo_urls, detail or None)
+
+            # Enhance with LLM parsing if a description is present
+            desc = (detail.get("description") or "").strip() if detail else ""
+            if desc:
+                activity = _enhance_with_llm(activity, desc)
+
             path = storage.save_activity(activity, body=body_template)
         except StravaRateLimitError as exc:
             # Stop importing immediately — continuing would either keep
