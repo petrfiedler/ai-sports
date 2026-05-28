@@ -277,6 +277,10 @@ def _enhance_with_llm(activity: ActivitySchema, description: str) -> ActivitySch
     instruction = (
         "Extract any structured data (especially strength exercises, sets, reps, lengths, weights) "
         "from the following Strava description and add it to the activity's exercises list. "
+        "IMPORTANT SCHEMA RULES: "
+        "1. Put `weight_kg` inside each set, NOT on the exercise itself. "
+        "2. Do not add made-up fields like `to_failure`, `superset_group`, or `set_number` to sets or exercises, the schema forbids them. Only use standard fields like `reps`, `weight_kg`, `duration_seconds`, `rest_seconds`. "
+        "3. Put any extra details (like superset info or failure) into the exercise's `notes` string field. "
         "Keep the existing core metrics (sport, duration, distance, date) EXACTLY as they are. "
         f"Description: {description}"
     )
